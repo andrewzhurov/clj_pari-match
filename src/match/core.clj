@@ -1,25 +1,51 @@
-(ns match.core)
+(ns match.core
+  (:require [clojure.test :refer [is testing deftest run-tests]]))
 
-;; I think that's the wrong way. And here should be special value for a draw.
-;; Since f=s is a perfect match and it deserves 2 points.
-;; (Easy to realize by using agreement that [-1 -1] is a draw.)
+(defn to-numbers [score]
+  (let [out  [(re-find #"^[\d-]+" score) (re-find #"[\d-]+$" score)]]
+    (if (= out ["-" "-"])
+      [-1 -1]
+      (vec (map #(Integer/parseInt %) out)))))
+
+;; underneath used values [-1 -1] for a draw
 (defn draw? [f s]
   (and (= f s)
-       (= (first f) (second f))))
+       (apply (partial = -1) f)))
 
 (defn match? [cli real]
   (= cli real))
 
-;; If we forget about our contract with draws we could be really surprised by [2 3] [3 3],
-;; for example, since it matches. So, don't forget about it ;)
-(defn correct-win? [cli real]
+;; Exact match of winning side doesn't matter
+(defn correct-winner? [cli real]
   (->> [cli real]
        (map (fn [[fir sec]] (if (> fir sec) :first :second)))
        (apply =)))
 
-(defn pari [cli real]
-   (cond
+(defn pari [cli-score real-score] 
+  (let [[cli real] (map to-numbers [cli-score real-score])]
+    (cond
      (draw? cli real) 1
      (match? cli real) 2
-     (correct-win? cli real) 1
-     :else 0))
+     (correct-winner? cli real) 1
+     :else 0)))
+
+(deftest to-numbers-test
+  (testing "all"
+    (is (and (= (to-numbers "2:0") [2 0])
+             (= (to-numbers "11:222") [11 222])
+             (= (to-numbers "-:-") [-1 -1])))))
+(deftest pari-test
+  (testing "perfect match"
+    (is (= (pari "2:0" "2:0") 2))
+    (is (= (pari "2:2" "2:2") 2))
+    (is (= (pari "0:0" "0:0") 2)))
+  (testing "correct winner"
+    (is (= (pari "3:4" "2:5") 1))
+    (is (= (pari "3:0" "2:1") 1)))
+  (testing "draw"
+    (is (= (pari "-:-" "-:-") 1)))
+  (testing "loss"
+    (is (= (pari "3:2" "3:4") 0)
+        (= (pari "5:6" "6:6") 0))))
+
+(run-tests)
